@@ -145,7 +145,7 @@ export function ProjectEditor({ data }: { data: ProjectEditorData }) {
                 title={form.title}
                 shortLabel="summary"
                 getText={() => [form.summary, form.problem, form.solution, extractText(form.content)].filter(Boolean).join("\n\n")}
-                onApply={(v) => set({ seoTitle: v.seoTitle, seoDescription: v.seoDescription, ...(form.summary.trim() ? {} : { summary: v.shortText }) })}
+                onApply={(v) => set({ seoTitle: v.seoTitle, seoDescription: v.seoDescription, summary: v.shortText })}
               />
             }
           >

@@ -6,7 +6,7 @@ import { type AiBlock, BLOCKS_SCHEMA, blocksToDoc } from "@/lib/ai/blocks";
 import { aiConfigured, generateJson } from "@/lib/ai/gemini";
 import { UserError } from "@/lib/errors";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import type { RTNode } from "@/lib/rich-text/model";
+import { extractText, type RTNode } from "@/lib/rich-text/model";
 import { requireAdmin } from "@/lib/session";
 import { getSettings } from "@/server/queries/settings";
 
@@ -24,6 +24,33 @@ async function guard() {
 }
 
 const clip = (s: string, n: number) => s.trim().slice(0, n);
+
+/** Writes SEO title/description and a short excerpt/summary from existing content. */
+async function suggestSeo(kind: "post" | "project", title: string, text: string, siteName: string) {
+  const out = await generateJson<{ seoTitle: string; seoDescription: string; shortText: string }>({
+    system: SYSTEM(siteName, "You optimise titles and descriptions for Google search without keyword stuffing."),
+    prompt:
+      `Page type: ${kind}. Title: ${title}\nContent:\n"""${clip(text, 6000)}"""\n\n` +
+      `Return seoTitle (50-60 chars, main keyword near the start), seoDescription (140-160 chars, clear benefit, natural call to read), ` +
+      `and shortText (a 1-2 sentence ${kind === "post" ? "excerpt" : "summary"}, max 280 chars).`,
+    schema: {
+      type: "OBJECT",
+      properties: { seoTitle: { type: "STRING" }, seoDescription: { type: "STRING" }, shortText: { type: "STRING" } },
+      required: ["seoTitle", "seoDescription", "shortText"],
+    },
+    temperature: 0.4,
+  });
+  return { seoTitle: clip(out.seoTitle ?? "", 70), seoDescription: clip(out.seoDescription ?? "", 170), shortText: clip(out.shortText ?? "", 400) };
+}
+
+/** A draft must always carry body, short text and both SEO fields: missing pieces are generated in a follow-up call. */
+async function completeDraft(kind: "post" | "project", d: { title: string; short: string; seoTitle: string; seoDescription: string; content: RTNode }, siteName: string) {
+  const text = extractText(d.content).trim();
+  if (text.length < 200) throw new UserError("The AI returned an incomplete article. Please click Generate again (add a bit more detail to the brief if it keeps happening).");
+  if (d.short.trim() && d.seoTitle.trim() && d.seoDescription.trim()) return d;
+  const s = await suggestSeo(kind, d.title, text, siteName);
+  return { ...d, short: d.short.trim() || s.shortText, seoTitle: d.seoTitle.trim() || s.seoTitle, seoDescription: d.seoDescription.trim() || s.seoDescription };
+}
 
 const briefSchema = z.object({
   brief: z.string().trim().min(10, "Describe the topic in at least a sentence.").max(4000),
@@ -63,9 +90,12 @@ export async function aiPostDraftAction(input: unknown) {
         required: ["title", "excerpt", "blocks", "seoTitle", "seoDescription"],
       },
     });
+    const done = await completeDraft("post", {
+      title: out.title ?? "", short: out.excerpt ?? "", seoTitle: out.seoTitle ?? "", seoDescription: out.seoDescription ?? "", content: blocksToDoc(out.blocks ?? []),
+    }, settings.siteName);
     return {
-      title: clip(out.title ?? "", 160), excerpt: clip(out.excerpt ?? "", 400), content: blocksToDoc(out.blocks ?? []),
-      seoTitle: clip(out.seoTitle ?? "", 70), seoDescription: clip(out.seoDescription ?? "", 170),
+      title: clip(out.title ?? "", 160), excerpt: clip(done.short, 400), content: done.content,
+      seoTitle: clip(done.seoTitle, 70), seoDescription: clip(done.seoDescription, 170),
       categoryName: out.categoryName ?? "", tagNames: (out.tagNames ?? []).slice(0, 5),
     };
   });
@@ -102,11 +132,14 @@ export async function aiProjectDraftAction(input: unknown) {
         required: ["title", "summary", "problem", "solution", "blocks", "seoTitle", "seoDescription"],
       },
     });
+    const done = await completeDraft("project", {
+      title: out.title ?? "", short: out.summary ?? "", seoTitle: out.seoTitle ?? "", seoDescription: out.seoDescription ?? "", content: blocksToDoc(out.blocks ?? []),
+    }, settings.siteName);
     return {
-      title: clip(out.title ?? "", 160), summary: clip(out.summary ?? "", 500), problem: clip(out.problem ?? "", 4000), solution: clip(out.solution ?? "", 4000),
-      content: blocksToDoc(out.blocks ?? []), role: clip(out.role ?? "", 160),
+      title: clip(out.title ?? "", 160), summary: clip(done.short, 500), problem: clip(out.problem ?? "", 4000), solution: clip(out.solution ?? "", 4000),
+      content: done.content, role: clip(out.role ?? "", 160),
       technologies: (out.technologies ?? []).map((t) => clip(t, 60)).filter(Boolean).slice(0, 12),
-      categoryNames: out.categoryNames ?? [], seoTitle: clip(out.seoTitle ?? "", 70), seoDescription: clip(out.seoDescription ?? "", 170),
+      categoryNames: out.categoryNames ?? [], seoTitle: clip(done.seoTitle, 70), seoDescription: clip(done.seoDescription, 170),
     };
   });
 }
@@ -123,19 +156,6 @@ export async function aiSeoAction(input: unknown) {
     await guard();
     const i = seoSchema.parse(input);
     const settings = await getSettings();
-    const out = await generateJson<{ seoTitle: string; seoDescription: string; shortText: string }>({
-      system: SYSTEM(settings.siteName, "You optimise titles and descriptions for Google search without keyword stuffing."),
-      prompt:
-        `Page type: ${i.kind}. Title: ${i.title}\nContent:\n"""${clip(i.text, 6000)}"""\n\n` +
-        `Return seoTitle (50-60 chars, main keyword near the start), seoDescription (140-160 chars, clear benefit, natural call to read), ` +
-        `and shortText (a 1-2 sentence ${i.kind === "post" ? "excerpt" : "summary"}, max 280 chars).`,
-      schema: {
-        type: "OBJECT",
-        properties: { seoTitle: { type: "STRING" }, seoDescription: { type: "STRING" }, shortText: { type: "STRING" } },
-        required: ["seoTitle", "seoDescription", "shortText"],
-      },
-      temperature: 0.4,
-    });
-    return { seoTitle: clip(out.seoTitle ?? "", 70), seoDescription: clip(out.seoDescription ?? "", 170), shortText: clip(out.shortText ?? "", 400) };
+    return suggestSeo(i.kind, i.title, i.text, settings.siteName);
   });
 }

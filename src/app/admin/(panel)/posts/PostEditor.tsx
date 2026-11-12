@@ -168,7 +168,7 @@ export function PostEditor({ data }: { data: PostEditorData }) {
                 title={form.title}
                 shortLabel="excerpt"
                 getText={() => extractText(form.content)}
-                onApply={(v) => set({ seoTitle: v.seoTitle, seoDescription: v.seoDescription, ...(form.excerpt.trim() ? {} : { excerpt: v.shortText }) })}
+                onApply={(v) => set({ seoTitle: v.seoTitle, seoDescription: v.seoDescription, excerpt: v.shortText })}
               />
             }
           >

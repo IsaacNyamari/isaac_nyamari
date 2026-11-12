@@ -42,7 +42,7 @@ export function AiDraftPanel<T>({
       silent: true,
       onSuccess: (draft) => {
         onApply(draft, replace);
-        toast.success("Draft ready — review it, add images, then save. Nothing is published yet.");
+        toast.success("Draft ready: title, content, excerpt/summary and SEO are filled in. Review it, add images, then save. Nothing is published yet.");
         setOpen(false);
       },
     });
@@ -114,10 +114,10 @@ export function AiSeoButton({ kind, title, getText, onApply, shortLabel }: {
       disabled={pending}
       onClick={() => {
         if (!title.trim()) return toast.error("Add a title first.");
-        run(() => aiSeoAction({ kind, title, text: getText() }), { silent: true, onSuccess: (v) => { onApply(v); toast.success(`SEO fields filled (and ${shortLabel} if empty). Review and save.`); } });
+        run(() => aiSeoAction({ kind, title, text: getText() }), { silent: true, onSuccess: (v) => { onApply(v); toast.success(`SEO title, SEO description and ${shortLabel} written. Review and save.`); } });
       }}
     >
-      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Suggest with AI
+      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Write SEO & excerpt with AI
     </Button>
   );
 }

@@ -9,7 +9,9 @@ import { ImageField, MediaPicker, type ImageValue } from "@/components/admin/Med
 import { PublishPanel, type PublishState } from "@/components/admin/PublishPanel";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Button, Card, Field, Input, PageHeader, Textarea, Toggle } from "@/components/admin/ui";
-import type { RTNode } from "@/lib/rich-text/model";
+import { AiDraftPanel, AiSeoButton } from "@/components/admin/AiAssistant";
+import { aiProjectDraftAction, type AiProjectDraft } from "../ai/actions";
+import { extractText, type RTNode } from "@/lib/rich-text/model";
 import { slugify } from "@/lib/slug";
 import { deleteProjectAction, discardProjectChangesAction, saveProjectAction, unpublishProjectAction } from "./actions";
 
@@ -29,10 +31,34 @@ export function ProjectEditor({ data }: { data: ProjectEditorData }) {
   const [saved, setSaved] = useState(JSON.stringify(data.form));
   const [autoSlug, setAutoSlug] = useState(!data.id);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [editorKey, setEditorKey] = useState(0);
   const { pending, run, fieldErrors } = useAction();
   const dirty = JSON.stringify(form) !== saved;
   useUnsavedChanges(dirty);
   const set = (patch: Partial<ProjectForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  /** Applies an AI draft: fills empty fields, or every field when `replace` is on. */
+  function applyAi(d: AiProjectDraft, replace: boolean) {
+    const fill = (cur: string, next: string) => (replace || !cur.trim() ? next || cur : cur);
+    const lc = (s: string) => s.trim().toLowerCase();
+    const title = fill(form.title, d.title);
+    const cats = data.categories.filter((c) => d.categoryNames.some((n) => lc(n) === lc(c.name))).map((c) => c.id);
+    const techs = replace || form.technologies.length === 0 ? (d.technologies.length ? d.technologies : form.technologies) : form.technologies;
+    set({
+      title,
+      ...(autoSlug && title !== form.title ? { slug: slugify(title) } : {}),
+      summary: fill(form.summary, d.summary),
+      problem: fill(form.problem, d.problem),
+      solution: fill(form.solution, d.solution),
+      role: fill(form.role, d.role),
+      content: replace || !extractText(form.content).trim() ? d.content : form.content,
+      technologies: techs,
+      categoryIds: replace || form.categoryIds.length === 0 ? (cats.length ? cats : form.categoryIds) : form.categoryIds,
+      seoTitle: fill(form.seoTitle, d.seoTitle),
+      seoDescription: fill(form.seoDescription, d.seoDescription),
+    });
+    setEditorKey((k) => k + 1);
+  }
 
   function save(intent: "draft" | "publish") {
     const { coverImage, ogImage, gallery, ...rest } = form;
@@ -59,6 +85,7 @@ export function ProjectEditor({ data }: { data: ProjectEditorData }) {
       <PageHeader title={data.id ? form.title || "Untitled project" : "New project"} crumbs={[{ label: "Dashboard", href: "/admin" }, { label: "Projects", href: "/admin/projects" }, { label: data.id ? "Edit" : "New" }]} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-6">
+          <AiDraftPanel kind="project" generate={aiProjectDraftAction} onApply={applyAi} categories={data.categories.map((c) => c.name)} />
           <Card>
             <div className="space-y-4">
               <Field label="Project title" htmlFor="title" error={fieldErrors.title} required>
@@ -81,7 +108,7 @@ export function ProjectEditor({ data }: { data: ProjectEditorData }) {
               </Field>
             </div>
             <p className="admin-label mt-4">Full write-up (optional)</p>
-            <RichTextEditor value={form.content} onChange={(content) => set({ content })} placeholder="Background, approach, architecture, results…" />
+            <RichTextEditor key={editorKey} value={form.content} onChange={(content) => set({ content })} placeholder="Background, approach, architecture, results…" />
           </Card>
 
           <Card title="Gallery" description="Images shown in a lightbox on the project page. Drag order with the arrows." actions={<Button size="sm" onClick={() => setGalleryOpen(true)}><Plus className="h-3.5 w-3.5" /> Add images</Button>}>
@@ -110,7 +137,18 @@ export function ProjectEditor({ data }: { data: ProjectEditorData }) {
             <MediaPicker open={galleryOpen} multiple onClose={() => setGalleryOpen(false)} onSelect={(items) => set({ gallery: [...form.gallery, ...items.map((m) => ({ id: m.id, url: m.thumbUrl, alt: m.alt, caption: m.caption }))] })} />
           </Card>
 
-          <Card title="SEO">
+          <Card
+            title="SEO"
+            actions={
+              <AiSeoButton
+                kind="project"
+                title={form.title}
+                shortLabel="summary"
+                getText={() => [form.summary, form.problem, form.solution, extractText(form.content)].filter(Boolean).join("\n\n")}
+                onApply={(v) => set({ seoTitle: v.seoTitle, seoDescription: v.seoDescription, ...(form.summary.trim() ? {} : { summary: v.shortText }) })}
+              />
+            }
+          >
             <SeoFields title={form.seoTitle} description={form.seoDescription} onChange={(p) => set(p)} fallbackTitle={form.title} fallbackDescription={form.summary}>
               <ImageField label="Social sharing image" value={form.ogImage} onChange={(ogImage) => set({ ogImage })} help="Defaults to the cover image." />
             </SeoFields>

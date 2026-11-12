@@ -10,7 +10,9 @@ import { PublishPanel, type PublishState } from "@/components/admin/PublishPanel
 import { Revisions, type RevisionItem } from "@/components/admin/Revisions";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Button, Card, Field, Input, PageHeader, Select, Textarea, Toggle } from "@/components/admin/ui";
-import type { RTNode } from "@/lib/rich-text/model";
+import { AiDraftPanel, AiSeoButton } from "@/components/admin/AiAssistant";
+import { aiPostDraftAction, type AiPostDraft } from "../ai/actions";
+import { extractText, type RTNode } from "@/lib/rich-text/model";
 import { slugify } from "@/lib/slug";
 import {
   createTagsAction, deletePostAction, discardPostChangesAction, restorePostRevisionAction, savePostAction, setPostStatusAction,
@@ -61,6 +63,7 @@ export function PostEditor({ data }: { data: PostEditorData }) {
   const [tags, setTags] = useState(data.tags);
   const [newTag, setNewTag] = useState("");
   const [relatedQuery, setRelatedQuery] = useState("");
+  const [editorKey, setEditorKey] = useState(0);
   const [scheduleLocal, setScheduleLocal] = useState(toLocalInput(data.form.scheduledAt));
   const { pending, run, fieldErrors } = useAction();
   const dirty = JSON.stringify(form) !== saved;
@@ -96,6 +99,28 @@ export function PostEditor({ data }: { data: PostEditorData }) {
     });
   }
 
+  /** Applies an AI draft: fills empty fields, or every field when `replace` is on. */
+  function applyAi(d: AiPostDraft, replace: boolean) {
+    const fill = (cur: string, next: string) => (replace || !cur.trim() ? next || cur : cur);
+    const lc = (s: string) => s.trim().toLowerCase();
+    const title = fill(form.title, d.title);
+    const category = data.categories.find((c) => lc(c.name) === lc(d.categoryName));
+    const tagIds = data.tags.filter((t) => d.tagNames.some((n) => lc(n) === lc(t.name))).map((t) => t.id);
+    const bodyEmpty = !extractText(form.content).trim();
+    set({
+      title,
+      ...(autoSlug && title !== form.title ? { slug: slugify(title) } : {}),
+      excerpt: fill(form.excerpt, d.excerpt),
+      content: replace || bodyEmpty ? d.content : form.content,
+      seoTitle: fill(form.seoTitle, d.seoTitle),
+      seoDescription: fill(form.seoDescription, d.seoDescription),
+      categoryId: replace || !form.categoryId ? (category?.id ?? form.categoryId) : form.categoryId,
+      tagIds: replace || form.tagIds.length === 0 ? (tagIds.length ? tagIds : form.tagIds) : form.tagIds,
+    });
+    // Remount the rich-text editor so it shows the new body.
+    setEditorKey((k) => k + 1);
+  }
+
   const relatedOptions = useMemo(
     () => data.others.filter((o) => !form.relatedIds.includes(o.id) && o.title.toLowerCase().includes(relatedQuery.toLowerCase())).slice(0, 8),
     [data.others, form.relatedIds, relatedQuery],
@@ -109,6 +134,7 @@ export function PostEditor({ data }: { data: PostEditorData }) {
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-6">
+          <AiDraftPanel kind="post" generate={aiPostDraftAction} onApply={applyAi} categories={data.categories.map((c) => c.name)} tags={tags.map((t) => t.name)} />
           <Card>
             <div className="space-y-4">
               <Field label="Title" htmlFor="title" error={fieldErrors.title} required>
@@ -130,11 +156,22 @@ export function PostEditor({ data }: { data: PostEditorData }) {
 
           <div>
             <p className="admin-label">Content</p>
-            <RichTextEditor value={form.content} onChange={(content) => set({ content })} placeholder="Write your article…" />
+            <RichTextEditor key={editorKey} value={form.content} onChange={(content) => set({ content })} placeholder="Write your article…" />
             {fieldErrors.content && <p className="mt-1 text-xs text-danger">{fieldErrors.content}</p>}
           </div>
 
-          <Card title="SEO & sharing">
+          <Card
+            title="SEO & sharing"
+            actions={
+              <AiSeoButton
+                kind="post"
+                title={form.title}
+                shortLabel="excerpt"
+                getText={() => extractText(form.content)}
+                onApply={(v) => set({ seoTitle: v.seoTitle, seoDescription: v.seoDescription, ...(form.excerpt.trim() ? {} : { excerpt: v.shortText }) })}
+              />
+            }
+          >
             <SeoFields title={form.seoTitle} description={form.seoDescription} onChange={(p) => set(p)} fallbackTitle={form.title} fallbackDescription={form.excerpt}>
               <Field label="Canonical URL override" htmlFor="canonical" help="Only if this article was first published elsewhere." error={fieldErrors.canonicalUrl}>
                 <Input id="canonical" type="url" value={form.canonicalUrl} onChange={(e) => set({ canonicalUrl: e.target.value })} placeholder="https://…" />

@@ -131,6 +131,14 @@ export function DeployPanel({ initial }: { initial: DeployInfo }) {
         </Card>
       )}
 
+      <Card title="Auto-deploy on push" description="GitHub webhook → /api/deploy/webhook">
+        <p className="text-sm text-[#6b7385]">
+          {initial.webhook
+            ? `Enabled: every push to ${initial.branch} deploys automatically. If a push arrives while a deploy is running it is skipped — click Deploy afterwards.`
+            : "Disabled. Set DEPLOY_WEBHOOK_SECRET (16+ characters) on the server and add a GitHub push webhook to enable it."}
+        </p>
+      </Card>
+
       <Card title="History">
         {initial.history.length === 0 ? (
           <p className="text-sm text-[#6b7385]">No deploys yet.</p>

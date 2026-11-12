@@ -17,6 +17,7 @@ export type DeployCommit = { hash: string; subject: string; author: string; date
 export type DeployHistoryItem = { at: string; state: string; from: string; to: string; trigger: string; message: string };
 export type DeployInfo = {
   enabled: boolean;
+  webhook: boolean;
   branch: string;
   state: DeployState;
   step: string;
@@ -99,7 +100,7 @@ function readHistory(): DeployHistoryItem[] {
 
 export async function getDeployInfo(): Promise<DeployInfo> {
   const status = readDeployStatus();
-  const base: DeployInfo = { enabled: deployEnabled(), branch: BRANCH, ...status, current: null, pending: [], fetchError: null, history: readHistory() };
+  const base: DeployInfo = { enabled: deployEnabled(), webhook: (process.env.DEPLOY_WEBHOOK_SECRET ?? "").length >= 16, branch: BRANCH, ...status, current: null, pending: [], fetchError: null, history: readHistory() };
   if (!base.enabled) return base;
   const fmt = "--format=%h%x1f%s%x1f%an%x1f%cI";
   try {

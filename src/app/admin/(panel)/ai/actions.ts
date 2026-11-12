@@ -67,11 +67,9 @@ const briefSchema = z
 function briefText(i: { title: string; brief: string }) {
   const parts: string[] = [];
   if (i.title) parts.push(`Title (use it exactly, do not change it): "${i.title}"`);
-  if (i.brief) parts.push(`Notes from the owner:
-"""${i.brief}"""`);
+  if (i.brief) parts.push(`Notes from the owner: """${i.brief}"""`);
   if (!i.brief) parts.push("Only the title is known. Infer the subject from it and write in general, useful terms. Do NOT invent client names, statistics, dates, prices, quotes or specific results.");
-  return parts.join("
-");
+  return parts.join(" ");
 }
 
 const WORDS = { short: "about 400 words", medium: "about 800 words", long: "about 1400 words" } as const;

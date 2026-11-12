@@ -1,5 +1,6 @@
 import { Card, PageHeader } from "@/components/admin/ui";
 import { requireAdminPage } from "@/lib/session";
+import { ChangeEmailForm } from "./ChangeEmailForm";
 import { ChangePasswordForm } from "./ChangePasswordForm";
 
 export const metadata = { title: "Account" };
@@ -19,6 +20,7 @@ export default async function AccountPage() {
           <p className="admin-help mt-4">Forgotten password? An administrator with server access can run <code>npm run admin:reset-password</code> (see README).</p>
         </Card>
         <ChangePasswordForm />
+        <ChangeEmailForm currentEmail={admin.email} />
       </div>
     </>
   );

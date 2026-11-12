@@ -53,8 +53,23 @@ async function resetPassword() {
   console.log(`✓ Password reset for ${email}; all sessions were signed out.`);
 }
 
+/** Recovery: ADMIN_EMAIL=<current> NEW_ADMIN_EMAIL=<new> npm run admin:reset-email */
+async function resetEmail() {
+  const current = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
+  const next = (process.env.NEW_ADMIN_EMAIL ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) throw new Error("Set NEW_ADMIN_EMAIL to a valid email address.");
+  const user = await db.adminUser.findUnique({ where: { email: current } });
+  if (!user) throw new Error(`No administrator with ${current}.`);
+  if (await db.adminUser.findUnique({ where: { email: next } })) throw new Error(`${next} is already in use.`);
+  await db.$transaction([
+    db.adminUser.update({ where: { id: user.id }, data: { email: next, emailVerified: true } }),
+    db.session.deleteMany({ where: { userId: user.id } }),
+  ]);
+  console.log(`✓ Email changed from ${current} to ${next}; all sessions were signed out.`);
+}
+
 const command = process.argv[2];
-(command === "create" ? create() : command === "reset-password" ? resetPassword() : Promise.reject(new Error("Usage: admin.ts create|reset-password")))
+(command === "create" ? create() : command === "reset-password" ? resetPassword() : command === "reset-email" ? resetEmail() : Promise.reject(new Error("Usage: admin.ts create|reset-password|reset-email")))
   .catch((err: Error) => {
     console.error(`✗ ${err.message}`);
     process.exitCode = 1;

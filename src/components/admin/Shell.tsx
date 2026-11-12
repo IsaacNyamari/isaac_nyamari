@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   ExternalLink, FileText, FolderKanban, Gauge, Home, Image as ImageIcon, Inbox, LayoutList, LogOut, Menu, Navigation,
-  Newspaper, Settings, Sparkles, Tags, UserRound, Wrench, X,
+  Newspaper, Rocket, Settings, Sparkles, Tags, UserRound, Wrench, X,
 } from "lucide-react";
 import { Monogram } from "@/components/site/Logo";
 import { authClient } from "@/lib/auth-client";
@@ -32,6 +32,7 @@ const NAV = [
       { href: "/admin/inquiries", label: "Inquiries", icon: Inbox, badge: "inquiries" },
       { href: "/admin/navigation", label: "Navigation", icon: Navigation },
       { href: "/admin/settings", label: "Settings", icon: Settings },
+      { href: "/admin/deploy", label: "Deploy", icon: Rocket },
       { href: "/admin/account", label: "Account", icon: UserRound },
     ],
   },

@@ -5,13 +5,14 @@ export type Permission =
   | "content:publish"
   | "media:write"
   | "settings:write"
+  | "deploy:run"
   | "navigation:write"
   | "inquiries:read"
   | "inquiries:write";
 
 const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<Permission>> = {
   ADMIN: new Set<Permission>([
-    "content:write", "content:publish", "media:write", "settings:write",
+    "content:write", "content:publish", "media:write", "settings:write", "deploy:run",
     "navigation:write", "inquiries:read", "inquiries:write",
   ]),
   // Reserved for future use: editors can write and upload but not publish or change settings.

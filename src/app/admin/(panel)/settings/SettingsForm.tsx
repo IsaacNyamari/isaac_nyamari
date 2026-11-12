@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, Sparkles, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import { aiKeywordsAction } from "../ai/actions";
 import { useAction, useUnsavedChanges } from "@/components/admin/hooks";
 import { ImageField, type ImageValue } from "@/components/admin/MediaPicker";
 import { Button, Card, Field, Input, Textarea, Toggle } from "@/components/admin/ui";
@@ -14,7 +16,7 @@ export type SettingsData = {
   general: { siteName: string; tagline: string; siteDescription: string; siteUrl: string; language: string; timezone: string };
   contact: { email: string; phone: string; whatsapp: string; locationText: string; contactCtaTitle: string; contactCtaText: string; notifyEmail: string; socials: Socials };
   branding: { logoLight: ImageValue; logoDark: ImageValue; favicon: ImageValue; placeholder: ImageValue; primaryColor: string; accentColor: string };
-  seo: { seoTitle: string; seoDescription: string; ogImage: ImageValue; allowIndexing: boolean; googleVerification: string; bingVerification: string; twitterHandle: string };
+  seo: { seoTitle: string; seoDescription: string; ogImage: ImageValue; allowIndexing: boolean; keywords: string; googleVerification: string; bingVerification: string; twitterHandle: string };
   footer: { footerDescription: string; copyrightText: string; footerCtaText: string };
 };
 
@@ -50,6 +52,14 @@ export function SettingsForm({ initial, integrations, initialTab }: { initial: S
     setD((prev) => ({ ...prev, [group]: { ...prev[group], ...p } }));
   }
 
+  const { pending: aiPending, run: runAi } = useAction();
+  function suggestKeywords() {
+    runAi(() => aiKeywordsAction({ about: d.general.siteDescription, current: d.seo.keywords }), {
+      silent: true,
+      onSuccess: (r) => { patch("seo", { keywords: r.keywords }); toast.success("Keywords suggested. Edit them, then save settings."); },
+    });
+  }
+
   function save() {
     const b = d.branding;
     run(
@@ -58,7 +68,7 @@ export function SettingsForm({ initial, integrations, initialTab }: { initial: S
           general: d.general,
           contact: d.contact,
           branding: { logoLightId: b.logoLight?.id ?? null, logoDarkId: b.logoDark?.id ?? null, faviconId: b.favicon?.id ?? null, placeholderImageId: b.placeholder?.id ?? null, primaryColor: b.primaryColor, accentColor: b.accentColor },
-          seo: { seoTitle: d.seo.seoTitle, seoDescription: d.seo.seoDescription, ogImageId: d.seo.ogImage?.id ?? null, allowIndexing: d.seo.allowIndexing, googleVerification: d.seo.googleVerification, bingVerification: d.seo.bingVerification, twitterHandle: d.seo.twitterHandle },
+          seo: { seoTitle: d.seo.seoTitle, seoDescription: d.seo.seoDescription, ogImageId: d.seo.ogImage?.id ?? null, allowIndexing: d.seo.allowIndexing, keywords: d.seo.keywords, googleVerification: d.seo.googleVerification, bingVerification: d.seo.bingVerification, twitterHandle: d.seo.twitterHandle },
           footer: d.footer,
         }),
       { onSuccess: () => { setSaved(JSON.stringify(d)); router.refresh(); } },
@@ -143,6 +153,14 @@ export function SettingsForm({ initial, integrations, initialTab }: { initial: S
               <Field label="Default meta description" htmlFor="seo-d" help={`${d.seo.seoDescription.length}/170`}><Textarea id="seo-d" rows={3} maxLength={170} value={d.seo.seoDescription} onChange={(e) => patch("seo", { seoDescription: e.target.value })} /></Field>
               <ImageField label="Default social sharing image" value={d.seo.ogImage} onChange={(ogImage) => patch("seo", { ogImage })} help="1200×630. Without one, a branded card is generated automatically." />
               <Toggle label="Allow search engines to index the site" description="When off, robots.txt disallows everything and pages are marked noindex." checked={d.seo.allowIndexing} onChange={(allowIndexing) => patch("seo", { allowIndexing })} />
+              <Field label="Keywords" htmlFor="seo-kw" help={`${d.seo.keywords.split(",").filter((k) => k.trim()).length} keywords · comma-separated phrases people would search to find you, e.g. “web developer in Nairobi”. Used in meta keywords and structured data; also put the important ones in your page text and headings, which is what Google ranks.`}>
+                <Textarea id="seo-kw" rows={3} maxLength={600} value={d.seo.keywords} onChange={(e) => patch("seo", { keywords: e.target.value })} placeholder="isaac nyamari, software developer kenya, web developer nairobi, custom web applications…" />
+              </Field>
+              <div>
+                <Button size="sm" loading={aiPending} disabled={aiPending} onClick={suggestKeywords}>
+                  <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Suggest keywords with AI
+                </Button>
+              </div>
               <Field label="X / Twitter handle" htmlFor="seo-tw" help="Without the @. Adds twitter:site to shared links."><Input id="seo-tw" value={d.seo.twitterHandle} onChange={(e) => patch("seo", { twitterHandle: e.target.value })} /></Field>
               <p className="admin-help">Sitemap: <a href="/sitemap.xml" target="_blank" rel="noopener" className="underline">/sitemap.xml</a> · Robots: <a href="/robots.txt" target="_blank" rel="noopener" className="underline">/robots.txt</a> (only published content is listed; updates automatically when you publish).</p>
             </div>

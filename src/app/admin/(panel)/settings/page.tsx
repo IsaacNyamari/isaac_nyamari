@@ -44,7 +44,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       primaryColor: s?.primaryColor ?? "",
       accentColor: s?.accentColor ?? "",
     },
-    seo: { seoTitle: s?.seoTitle ?? "", seoDescription: s?.seoDescription ?? "", ogImage: img(s?.ogImageId), allowIndexing: s?.allowIndexing ?? true, googleVerification: s?.googleVerification ?? "", bingVerification: s?.bingVerification ?? "", twitterHandle: s?.twitterHandle ?? "" },
+    seo: { seoTitle: s?.seoTitle ?? "", seoDescription: s?.seoDescription ?? "", ogImage: img(s?.ogImageId), allowIndexing: s?.allowIndexing ?? true, keywords: s?.keywords ?? "", googleVerification: s?.googleVerification ?? "", bingVerification: s?.bingVerification ?? "", twitterHandle: s?.twitterHandle ?? "" },
     footer: { footerDescription: s?.footerDescription ?? "", copyrightText: s?.copyrightText ?? "", footerCtaText: s?.footerCtaText ?? "" },
   };
   const email = emailStatus();

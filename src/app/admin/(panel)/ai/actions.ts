@@ -171,3 +171,28 @@ export async function aiSeoAction(input: unknown) {
     return suggestSeo(i.kind, i.title, i.text, settings.siteName);
   });
 }
+
+const keywordsSchema = z.object({ about: z.string().trim().max(2000).default(""), current: z.string().trim().max(600).default("") });
+
+/** Suggests a keyword list that people would actually search to find this website. */
+export async function aiKeywordsAction(input: unknown) {
+  return runAction(async () => {
+    await guard();
+    const i = keywordsSchema.parse(input);
+    const s = await getSettings();
+    const out = await generateJson<{ keywords: string[] }>({
+      system: SYSTEM(s.siteName, "You do keyword research for local and global search."),
+      prompt:
+        `Website owner: ${s.siteName}. Tagline: ${s.tagline}. Description: ${s.siteDescription || s.seoDescription}. Location: ${s.locationText || "Kenya"}.\n` +
+        `${i.about ? `Extra context: ${i.about}\n` : ""}${i.current ? `Existing keywords (keep the good ones): ${i.current}\n` : ""}` +
+        `Return 15-20 search keywords/phrases a potential client would type into Google to find this person or their services. ` +
+        `Mix: the owner's name, role + location (e.g. "software developer in Nairobi", "web developer Kenya"), services (e.g. "custom web application development", "M-Pesa integration developer"), and a few long-tail phrases. ` +
+        `Lowercase except proper names, each 1-5 words, no duplicates, no generic single words like "software".`,
+      schema: { type: "OBJECT", properties: { keywords: { type: "ARRAY", items: { type: "STRING" } } }, required: ["keywords"] },
+      temperature: 0.5,
+    });
+    const seen = new Set<string>();
+    const list = (out.keywords ?? []).map((k) => clip(k, 60)).filter((k) => k && !seen.has(k.toLowerCase()) && seen.add(k.toLowerCase())).slice(0, 25);
+    return { keywords: list.join(", ") };
+  });
+}

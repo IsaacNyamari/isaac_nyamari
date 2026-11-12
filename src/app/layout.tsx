@@ -19,6 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: title, template: `%s | ${s.siteName}` },
     description: s.seoDescription || s.siteDescription,
     applicationName: s.siteName,
+    ...(s.keywords.length ? { keywords: s.keywords } : {}),
     authors: [{ name: s.siteName }],
     robots: s.allowIndexing
       ? { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } }

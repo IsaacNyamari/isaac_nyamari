@@ -212,6 +212,7 @@ export const settingsSchema = z.object({
     seoDescription: text(170).default(""),
     ogImageId: optionalId,
     allowIndexing: z.boolean().default(true),
+    keywords: text(600).default(""),
     googleVerification: text(120).default(""),
     bingVerification: text(120).default(""),
     twitterHandle: text(40).default("").transform((v) => v.replace(/^@/, "")),

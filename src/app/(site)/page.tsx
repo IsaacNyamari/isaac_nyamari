@@ -37,7 +37,7 @@ export default async function HomePage() {
           url,
           image: s.ogImage ? s.ogImage.url : `${url}/opengraph-image`,
           jobTitle: "Software Engineer",
-          knowsAbout: ["Web development", "Software engineering", "SaaS", "APIs", "Business systems"],
+          knowsAbout: s.keywords.length ? s.keywords : ["Web development", "Software engineering", "SaaS", "APIs", "Business systems"],
           description: s.siteDescription,
           ...(s.locationText ? { address: { "@type": "PostalAddress", addressCountry: s.locationText } } : {}),
           ...(s.email ? { email: `mailto:${s.email}` } : {}),

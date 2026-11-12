@@ -531,6 +531,8 @@ model SiteSettings {
   googleVerification String @default("")
   bingVerification   String @default("")
   twitterHandle      String @default("")
+  /// Comma-separated site keywords (meta keywords + structured data)
+  keywords           String @default("")
 
   email           String   @default("")
   phone           String   @default("")

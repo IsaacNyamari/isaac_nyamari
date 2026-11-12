@@ -14,6 +14,7 @@ export type PublicSettings = {
   seoTitle: string;
   seoDescription: string;
   allowIndexing: boolean;
+  keywords: string[];
   googleVerification: string;
   bingVerification: string;
   twitterHandle: string;
@@ -46,6 +47,7 @@ export const DEFAULT_SETTINGS: PublicSettings = {
   seoTitle: "",
   seoDescription: "",
   allowIndexing: true,
+  keywords: [],
   googleVerification: "",
   bingVerification: "",
   twitterHandle: "",
@@ -90,6 +92,7 @@ async function loadSettings(): Promise<PublicSettings> {
     seoTitle: s.seoTitle,
     seoDescription: s.seoDescription,
     allowIndexing: s.allowIndexing,
+    keywords: s.keywords.split(",").map((k) => k.trim()).filter(Boolean).slice(0, 30),
     googleVerification: s.googleVerification,
     bingVerification: s.bingVerification,
     twitterHandle: s.twitterHandle,

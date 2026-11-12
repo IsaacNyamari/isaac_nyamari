@@ -1,3 +1,4 @@
+import type { GSchema } from "@/lib/ai/gemini";
 import type { RTNode } from "@/lib/rich-text/model";
 
 /** The simple block format Gemini returns; converted to the editor's JSON on the server so the model never writes raw HTML. */
@@ -41,7 +42,7 @@ export function blocksToDoc(blocks: AiBlock[]): RTNode {
   return { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
 }
 
-export const BLOCKS_SCHEMA = {
+export const BLOCKS_SCHEMA: GSchema = {
   type: "ARRAY",
   description: "Article body as ordered blocks",
   items: {
@@ -53,4 +54,4 @@ export const BLOCKS_SCHEMA = {
     },
     required: ["type"],
   },
-} as const;
+};

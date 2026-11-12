@@ -26,7 +26,9 @@ export async function pageMetadata(input: PageMetaInput): Promise<Metadata> {
   const s = await getSettings();
   const url = await baseUrl();
   const description = input.description || s.seoDescription || s.siteDescription;
-  const image = input.image ?? s.ogImage;
+  // Always emit an og:image: page image, then the site default, then the generated branded card.
+  const image: PublicImage | null =
+    input.image ?? s.ogImage ?? { id: "generated", url: `${url}/opengraph-image`, alt: s.siteName, width: 1200, height: 630 } as PublicImage;
   const canonical = input.canonical || `${url}${input.path === "/" ? "" : input.path}` || url;
   // An SEO title that already ends with the site name must not get the template suffix twice.
   const suffix = ` | ${s.siteName}`;
@@ -47,8 +49,9 @@ export async function pageMetadata(input: PageMetaInput): Promise<Metadata> {
       ...(input.modifiedTime ? { modifiedTime: input.modifiedTime } : {}),
     },
     twitter: {
-      card: image ? "summary_large_image" : "summary",
-      title: input.title ?? s.seoTitle,
+      card: "summary_large_image",
+      ...(s.twitterHandle ? { site: `@${s.twitterHandle}`, creator: `@${s.twitterHandle}` } : {}),
+      title: input.title ?? s.seoTitle ?? s.siteName,
       description,
       ...(image ? { images: [absolute(url, image.url)] } : {}),
     },

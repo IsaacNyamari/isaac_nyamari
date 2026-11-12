@@ -20,7 +20,15 @@ export async function generateMetadata(): Promise<Metadata> {
     description: s.seoDescription || s.siteDescription,
     applicationName: s.siteName,
     authors: [{ name: s.siteName }],
-    robots: s.allowIndexing ? { index: true, follow: true } : { index: false, follow: false },
+    robots: s.allowIndexing
+      ? { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } }
+      : { index: false, follow: false },
+    verification: {
+      ...(s.googleVerification ? { google: s.googleVerification } : {}),
+      ...(s.bingVerification ? { other: { "msvalidate.01": s.bingVerification } } : {}),
+    },
+    openGraph: { type: "website", siteName: s.siteName, locale: s.language === "en" ? "en_KE" : s.language, images: [{ url: s.ogImage?.url ?? "/opengraph-image", width: 1200, height: 630, alt: s.siteName }] },
+    twitter: { card: "summary_large_image", ...(s.twitterHandle ? { site: `@${s.twitterHandle}`, creator: `@${s.twitterHandle}` } : {}) },
     icons: s.favicon
       ? { icon: s.favicon.url, apple: s.favicon.url }
       : {

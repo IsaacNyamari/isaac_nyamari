@@ -527,6 +527,10 @@ model SiteSettings {
   seoTitle        String   @default("")
   seoDescription  String   @default("")
   allowIndexing   Boolean  @default(true)
+  /// Search Console / Bing Webmaster verification tokens (content value only) and X/Twitter handle
+  googleVerification String @default("")
+  bingVerification   String @default("")
+  twitterHandle      String @default("")
 
   email           String   @default("")
   phone           String   @default("")

@@ -20,13 +20,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     db.category.findMany({ where: { posts: { some: publishedWhere() } }, select: { slug: true } }),
     db.tag.findMany({ where: { posts: { some: { post: publishedWhere() } } }, select: { slug: true } }),
   ]);
-  const latest = posts[0]?.updatedAt ?? new Date();
+  const newest = (items: { updatedAt: Date }[]) => items.reduce<Date | undefined>((m, i) => (!m || i.updatedAt > m ? i.updatedAt : m), undefined);
+  const latest = newest(posts) ?? new Date();
+  const all = [newest(posts), newest(projects), newest(services), newest(pages)].filter(Boolean) as Date[];
+  const site = all.length ? new Date(Math.max(...all.map((d) => d.getTime()))) : new Date();
   return [
-    { url: `${url}/`, changeFrequency: "weekly", priority: 1 },
-    { url: `${url}/services`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${url}/projects`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${url}/`, lastModified: site, changeFrequency: "weekly", priority: 1 },
+    { url: `${url}/services`, lastModified: newest(services) ?? site, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${url}/projects`, lastModified: newest(projects) ?? site, changeFrequency: "monthly", priority: 0.8 },
     { url: `${url}/insights`, lastModified: latest, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${url}/contact`, changeFrequency: "yearly", priority: 0.6 },
+    { url: `${url}/contact`, lastModified: newest(pages) ?? site, changeFrequency: "yearly", priority: 0.6 },
     ...pages.map((p) => ({ url: `${url}/${p.slug}`, lastModified: p.updatedAt, priority: p.slug === "about" ? 0.8 : 0.4 })),
     ...services.map((s) => ({ url: `${url}/services/${s.slug}`, lastModified: s.updatedAt, priority: 0.7 })),
     ...projects.map((p) => ({ url: `${url}/projects/${p.slug}`, lastModified: p.updatedAt, priority: 0.7 })),

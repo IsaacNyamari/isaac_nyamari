@@ -22,10 +22,22 @@ export default async function HomePage() {
       <JsonLd
         data={{
           "@context": "https://schema.org",
+          "@graph": [
+            { "@type": "WebSite", "@id": `${url}/#website`, url, name: s.siteName, description: s.siteDescription, inLanguage: s.language || "en", publisher: { "@id": `${url}/#person` } },
+            { "@type": "WebPage", "@id": `${url}/#webpage`, url, name: s.seoTitle || s.siteName, isPartOf: { "@id": `${url}/#website` }, about: { "@id": `${url}/#person` }, primaryImageOfPage: s.ogImage ? s.ogImage.url : `${url}/opengraph-image` },
+          ],
+        }}
+      />
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
           "@type": "Person",
+          "@id": `${url}/#person`,
           name: s.siteName,
           url,
+          image: s.ogImage ? s.ogImage.url : `${url}/opengraph-image`,
           jobTitle: "Software Engineer",
+          knowsAbout: ["Web development", "Software engineering", "SaaS", "APIs", "Business systems"],
           description: s.siteDescription,
           ...(s.locationText ? { address: { "@type": "PostalAddress", addressCountry: s.locationText } } : {}),
           ...(s.email ? { email: `mailto:${s.email}` } : {}),

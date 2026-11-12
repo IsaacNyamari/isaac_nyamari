@@ -14,7 +14,7 @@ export type SettingsData = {
   general: { siteName: string; tagline: string; siteDescription: string; siteUrl: string; language: string; timezone: string };
   contact: { email: string; phone: string; whatsapp: string; locationText: string; contactCtaTitle: string; contactCtaText: string; notifyEmail: string; socials: Socials };
   branding: { logoLight: ImageValue; logoDark: ImageValue; favicon: ImageValue; placeholder: ImageValue; primaryColor: string; accentColor: string };
-  seo: { seoTitle: string; seoDescription: string; ogImage: ImageValue; allowIndexing: boolean };
+  seo: { seoTitle: string; seoDescription: string; ogImage: ImageValue; allowIndexing: boolean; googleVerification: string; bingVerification: string; twitterHandle: string };
   footer: { footerDescription: string; copyrightText: string; footerCtaText: string };
 };
 
@@ -58,7 +58,7 @@ export function SettingsForm({ initial, integrations, initialTab }: { initial: S
           general: d.general,
           contact: d.contact,
           branding: { logoLightId: b.logoLight?.id ?? null, logoDarkId: b.logoDark?.id ?? null, faviconId: b.favicon?.id ?? null, placeholderImageId: b.placeholder?.id ?? null, primaryColor: b.primaryColor, accentColor: b.accentColor },
-          seo: { seoTitle: d.seo.seoTitle, seoDescription: d.seo.seoDescription, ogImageId: d.seo.ogImage?.id ?? null, allowIndexing: d.seo.allowIndexing },
+          seo: { seoTitle: d.seo.seoTitle, seoDescription: d.seo.seoDescription, ogImageId: d.seo.ogImage?.id ?? null, allowIndexing: d.seo.allowIndexing, googleVerification: d.seo.googleVerification, bingVerification: d.seo.bingVerification, twitterHandle: d.seo.twitterHandle },
           footer: d.footer,
         }),
       { onSuccess: () => { setSaved(JSON.stringify(d)); router.refresh(); } },
@@ -131,15 +131,40 @@ export function SettingsForm({ initial, integrations, initialTab }: { initial: S
         )}
 
         {tab === "seo" && (
+          <>
+          <Card title="SEO health" description="Live checks against the values below (save to apply).">
+            <ul className="divide-y divide-[#eef0f4] text-sm">
+              {seoChecks(d).map((c) => <Status key={c.title} ok={c.ok} title={c.title} text={c.text} />)}
+            </ul>
+          </Card>
           <Card title="Search & sharing">
             <div className="space-y-4">
               <Field label="Default SEO title" htmlFor="seo-t" help={`${d.seo.seoTitle.length}/70 · Used on the homepage and as the fallback title.`}><Input id="seo-t" maxLength={70} value={d.seo.seoTitle} onChange={(e) => patch("seo", { seoTitle: e.target.value })} /></Field>
               <Field label="Default meta description" htmlFor="seo-d" help={`${d.seo.seoDescription.length}/170`}><Textarea id="seo-d" rows={3} maxLength={170} value={d.seo.seoDescription} onChange={(e) => patch("seo", { seoDescription: e.target.value })} /></Field>
               <ImageField label="Default social sharing image" value={d.seo.ogImage} onChange={(ogImage) => patch("seo", { ogImage })} help="1200×630. Without one, a branded card is generated automatically." />
               <Toggle label="Allow search engines to index the site" description="When off, robots.txt disallows everything and pages are marked noindex." checked={d.seo.allowIndexing} onChange={(allowIndexing) => patch("seo", { allowIndexing })} />
-              <p className="admin-help">Sitemap: <a href="/sitemap.xml" target="_blank" rel="noopener" className="underline">/sitemap.xml</a> · Robots: <a href="/robots.txt" target="_blank" rel="noopener" className="underline">/robots.txt</a> (only published content is listed).</p>
+              <Field label="X / Twitter handle" htmlFor="seo-tw" help="Without the @. Adds twitter:site to shared links."><Input id="seo-tw" value={d.seo.twitterHandle} onChange={(e) => patch("seo", { twitterHandle: e.target.value })} /></Field>
+              <p className="admin-help">Sitemap: <a href="/sitemap.xml" target="_blank" rel="noopener" className="underline">/sitemap.xml</a> · Robots: <a href="/robots.txt" target="_blank" rel="noopener" className="underline">/robots.txt</a> (only published content is listed; updates automatically when you publish).</p>
             </div>
           </Card>
+          <Card title="Search Console & webmaster tools" description="Verify the site so Google and Bing report indexing, queries and errors.">
+            <div className="space-y-4">
+              <Field label="Google Search Console verification code" htmlFor="seo-g" help="Only the content value from the HTML-tag method, e.g. abc123… (not the whole tag)."><Input id="seo-g" value={d.seo.googleVerification} onChange={(e) => patch("seo", { googleVerification: e.target.value })} /></Field>
+              <Field label="Bing Webmaster verification code" htmlFor="seo-b" help="The msvalidate.01 content value."><Input id="seo-b" value={d.seo.bingVerification} onChange={(e) => patch("seo", { bingVerification: e.target.value })} /></Field>
+              <div className="rounded-lg bg-[#f6f7fa] p-3 text-sm">
+                <p className="font-medium">Sitemap to submit</p>
+                <code className="break-all">{(d.general.siteUrl || "").replace(/\/$/, "")}/sitemap.xml</code>
+                <ol className="mt-3 list-decimal space-y-1 pl-5 text-[#3a4258]">
+                  <li>Open <a className="underline" href="https://search.google.com/search-console" target="_blank" rel="noopener">Google Search Console</a>, add the site as a URL-prefix property, copy the HTML-tag code here and save.</li>
+                  <li>Click Verify in Search Console, then Sitemaps → submit <code>sitemap.xml</code>.</li>
+                  <li>Use URL Inspection → Request indexing for the homepage and key pages.</li>
+                  <li>Repeat on <a className="underline" href="https://www.bing.com/webmasters" target="_blank" rel="noopener">Bing Webmaster Tools</a>.</li>
+                  <li>Test with the <a className="underline" href="https://search.google.com/test/rich-results" target="_blank" rel="noopener">Rich Results Test</a> and <a className="underline" href="https://pagespeed.web.dev" target="_blank" rel="noopener">PageSpeed Insights</a>.</li>
+                </ol>
+              </div>
+            </div>
+          </Card>
+          </>
         )}
 
         {tab === "footer" && (
@@ -172,6 +197,20 @@ export function SettingsForm({ initial, integrations, initialTab }: { initial: S
       </div>
     </div>
   );
+}
+
+function seoChecks(d: SettingsData) {
+  const t = d.seo.seoTitle.length;
+  const m = d.seo.seoDescription.length;
+  return [
+    { title: "Search engines may index the site", ok: d.seo.allowIndexing, text: d.seo.allowIndexing ? "Indexing is on." : "Indexing is OFF — the site cannot appear in Google." },
+    { title: "Canonical site URL is set (https)", ok: /^https:\/\//i.test(d.general.siteUrl), text: "Set the Site URL on the General tab, e.g. https://isaac.humsols.com." },
+    { title: "SEO title is 30–60 characters", ok: t >= 30 && t <= 60, text: `Currently ${t}. Lead with the main keyword and your name.` },
+    { title: "Meta description is 120–160 characters", ok: m >= 120 && m <= 160, text: `Currently ${m}. Describe what you offer and where.` },
+    { title: "Social sharing image", ok: true, text: d.seo.ogImage ? "Custom image uploaded." : "A branded 1200×630 card is generated automatically." },
+    { title: "Google Search Console verified code added", ok: Boolean(d.seo.googleVerification), text: "Add the verification code below, then submit the sitemap." },
+    { title: "Bing Webmaster code added", ok: Boolean(d.seo.bingVerification), text: "Optional but recommended." },
+  ];
 }
 
 function Status({ ok, title, text }: { ok: boolean; title: string; text: string }) {

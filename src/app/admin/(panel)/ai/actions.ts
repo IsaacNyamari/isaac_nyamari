@@ -52,13 +52,27 @@ async function completeDraft(kind: "post" | "project", d: { title: string; short
   return { ...d, short: d.short.trim() || s.shortText, seoTitle: d.seoTitle.trim() || s.seoTitle, seoDescription: d.seoDescription.trim() || s.seoDescription };
 }
 
-const briefSchema = z.object({
-  brief: z.string().trim().min(10, "Describe the topic in at least a sentence.").max(4000),
-  tone: z.enum(["professional", "friendly", "technical"]).default("professional"),
-  length: z.enum(["short", "medium", "long"]).default("medium"),
-  categories: z.array(z.string()).max(50).default([]),
-  tags: z.array(z.string()).max(100).default([]),
-});
+const briefSchema = z
+  .object({
+    title: z.string().trim().max(160).default(""),
+    brief: z.string().trim().max(4000).default(""),
+    tone: z.enum(["professional", "friendly", "technical"]).default("professional"),
+    length: z.enum(["short", "medium", "long"]).default("medium"),
+    categories: z.array(z.string()).max(50).default([]),
+    tags: z.array(z.string()).max(100).default([]),
+  })
+  .refine((v) => v.title.length >= 3 || v.brief.length >= 10, { message: "Type a title (or describe the topic) first." });
+
+/** The writing brief: a fixed title and/or free-form notes. With only a title, the AI must stay general and not invent facts. */
+function briefText(i: { title: string; brief: string }) {
+  const parts: string[] = [];
+  if (i.title) parts.push(`Title (use it exactly, do not change it): "${i.title}"`);
+  if (i.brief) parts.push(`Notes from the owner:
+"""${i.brief}"""`);
+  if (!i.brief) parts.push("Only the title is known. Infer the subject from it and write in general, useful terms. Do NOT invent client names, statistics, dates, prices, quotes or specific results.");
+  return parts.join("
+");
+}
 
 const WORDS = { short: "about 400 words", medium: "about 800 words", long: "about 1400 words" } as const;
 
@@ -77,7 +91,7 @@ export async function aiPostDraftAction(input: unknown) {
     }>({
       system: SYSTEM(settings.siteName, `Tone: ${i.tone}. Structure articles with an introduction, 3-6 sections using h2 headings (h3 where useful), and a short conclusion. Do not repeat the title as a heading.`),
       prompt:
-        `Write a blog article, ${WORDS[i.length]}, from this brief:\n"""${i.brief}"""\n\n` +
+        `Write a blog article, ${WORDS[i.length]}, from this brief:\n${briefText(i)}\n\n` +
         `Also provide: a title (max 100 chars), an excerpt (max 300 chars), seoTitle (50-60 chars, includes the main keyword), seoDescription (140-160 chars, inviting, includes the keyword), ` +
         `categoryName (choose exactly one of [${i.categories.join(" | ")}] or "" if none fit), tagNames (up to 5, choose only from [${i.tags.join(" | ")}]).`,
       schema: {
@@ -94,7 +108,7 @@ export async function aiPostDraftAction(input: unknown) {
       title: out.title ?? "", short: out.excerpt ?? "", seoTitle: out.seoTitle ?? "", seoDescription: out.seoDescription ?? "", content: blocksToDoc(out.blocks ?? []),
     }, settings.siteName);
     return {
-      title: clip(out.title ?? "", 160), excerpt: clip(done.short, 400), content: done.content,
+      title: clip(i.title || (out.title ?? ""), 160), excerpt: clip(done.short, 400), content: done.content,
       seoTitle: clip(done.seoTitle, 70), seoDescription: clip(done.seoDescription, 170),
       categoryName: out.categoryName ?? "", tagNames: (out.tagNames ?? []).slice(0, 5),
     };
@@ -117,7 +131,7 @@ export async function aiProjectDraftAction(input: unknown) {
     }>({
       system: SYSTEM(settings.siteName, `Tone: ${i.tone}. This is a portfolio case study.`),
       prompt:
-        `Create a portfolio project case study from this brief:\n"""${i.brief}"""\n\n` +
+        `Create a portfolio project case study from this brief:\n${briefText(i)}\n\n` +
         `Provide: title (max 100 chars), summary (1-2 sentences, max 300 chars), problem (2-4 sentences: the problem addressed), solution (2-4 sentences: what was built and how), ` +
         `blocks (a full write-up, ${WORDS[i.length]}, with h2 sections such as Background, Approach, Architecture, Results — only claim what the brief supports), ` +
         `role (short, e.g. "Lead developer" — only if the brief implies it, else ""), technologies (tool/framework names mentioned or clearly implied, max 12), ` +
@@ -136,7 +150,7 @@ export async function aiProjectDraftAction(input: unknown) {
       title: out.title ?? "", short: out.summary ?? "", seoTitle: out.seoTitle ?? "", seoDescription: out.seoDescription ?? "", content: blocksToDoc(out.blocks ?? []),
     }, settings.siteName);
     return {
-      title: clip(out.title ?? "", 160), summary: clip(done.short, 500), problem: clip(out.problem ?? "", 4000), solution: clip(out.solution ?? "", 4000),
+      title: clip(i.title || (out.title ?? ""), 160), summary: clip(done.short, 500), problem: clip(out.problem ?? "", 4000), solution: clip(out.solution ?? "", 4000),
       content: done.content, role: clip(out.role ?? "", 160),
       technologies: (out.technologies ?? []).map((t) => clip(t, 60)).filter(Boolean).slice(0, 12),
       categoryNames: out.categoryNames ?? [], seoTitle: clip(done.seoTitle, 70), seoDescription: clip(done.seoDescription, 170),

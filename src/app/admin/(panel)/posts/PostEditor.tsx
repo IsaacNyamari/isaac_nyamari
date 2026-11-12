@@ -10,7 +10,7 @@ import { PublishPanel, type PublishState } from "@/components/admin/PublishPanel
 import { Revisions, type RevisionItem } from "@/components/admin/Revisions";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Button, Card, Field, Input, PageHeader, Select, Textarea, Toggle } from "@/components/admin/ui";
-import { AiDraftPanel, AiSeoButton } from "@/components/admin/AiAssistant";
+import { AiDraftPanel, AiSeoButton, AiTitleButton } from "@/components/admin/AiAssistant";
 import { aiPostDraftAction, type AiPostDraft } from "../ai/actions";
 import { extractText, type RTNode } from "@/lib/rich-text/model";
 import { slugify } from "@/lib/slug";
@@ -147,6 +147,7 @@ export function PostEditor({ data }: { data: PostEditorData }) {
                   onChange={(e) => set({ title: e.target.value, ...(autoSlug ? { slug: slugify(e.target.value) } : {}) })}
                 />
               </Field>
+              <AiTitleButton kind="post" title={form.title} generate={aiPostDraftAction} onApply={applyAi} categories={data.categories.map((c) => c.name)} tags={tags.map((t) => t.name)} />
               <SlugField value={form.slug} onChange={(slug) => set({ slug })} title={form.title} prefix="/insights/" error={fieldErrors.slug} autoSync={autoSlug} onAutoSyncChange={setAutoSlug} />
               <Field label="Excerpt" htmlFor="excerpt" help={`${form.excerpt.length}/400 · Shown on cards and used as the default meta description.`} error={fieldErrors.excerpt}>
                 <Textarea id="excerpt" rows={3} maxLength={400} value={form.excerpt} onChange={(e) => set({ excerpt: e.target.value })} />

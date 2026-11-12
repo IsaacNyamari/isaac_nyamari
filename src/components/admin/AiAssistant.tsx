@@ -19,7 +19,7 @@ export function AiDraftPanel<T>({
   kind, generate, onApply, categories, tags = [],
 }: {
   kind: "post" | "project";
-  generate: (input: { brief: string; tone: Tone; length: Length; categories: string[]; tags: string[] }) => Promise<ActionResult<T>>;
+  generate: (input: { title?: string; brief: string; tone: Tone; length: Length; categories: string[]; tags: string[] }) => Promise<ActionResult<T>>;
   onApply: (draft: T, replace: boolean) => void;
   categories: string[];
   tags?: string[];
@@ -119,5 +119,44 @@ export function AiSeoButton({ kind, title, getText, onApply, shortLabel }: {
     >
       <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Write SEO & excerpt with AI
     </Button>
+  );
+}
+
+/**
+ * One-click mode: type only the title, click, and AI fills every empty field from what the title says
+ * (body, summary/excerpt, case-study fields, tags/categories, SEO). The typed title is never changed.
+ */
+export function AiTitleButton<T>({ title, kind, generate, onApply, categories, tags = [] }: {
+  title: string;
+  kind: "post" | "project";
+  generate: (input: { title?: string; brief: string; tone: Tone; length: Length; categories: string[]; tags: string[] }) => Promise<ActionResult<T>>;
+  onApply: (draft: T, replace: boolean) => void;
+  categories: string[];
+  tags?: string[];
+}) {
+  const { pending, run } = useAction();
+  const ready = title.trim().length >= 3;
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gold/50 bg-[#fffaf0] p-3">
+      <Button
+        variant="gold"
+        loading={pending}
+        disabled={pending || !ready}
+        onClick={() =>
+          run(() => generate({ title: title.trim(), brief: "", tone: "professional", length: "medium", categories, tags }), {
+            silent: true,
+            onSuccess: (d) => {
+              onApply(d, false);
+              toast.success("Done — everything is filled from the title. Review it, add images, then save. Nothing is published yet.");
+            },
+          })
+        }
+      >
+        <Sparkles className="h-4 w-4" aria-hidden="true" /> {pending ? "Writing… (10–30s)" : "Generate content with AI"}
+      </Button>
+      <span className="text-xs text-[#6b7385]">
+        {ready ? `Fills every empty field of this ${kind} from the title. Fields you already wrote are kept.` : `Type a ${kind} title first, then click.`}
+      </span>
+    </div>
   );
 }

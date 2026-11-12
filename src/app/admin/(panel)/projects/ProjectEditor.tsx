@@ -9,7 +9,7 @@ import { ImageField, MediaPicker, type ImageValue } from "@/components/admin/Med
 import { PublishPanel, type PublishState } from "@/components/admin/PublishPanel";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { Button, Card, Field, Input, PageHeader, Textarea, Toggle } from "@/components/admin/ui";
-import { AiDraftPanel, AiSeoButton } from "@/components/admin/AiAssistant";
+import { AiDraftPanel, AiSeoButton, AiTitleButton } from "@/components/admin/AiAssistant";
 import { aiProjectDraftAction, type AiProjectDraft } from "../ai/actions";
 import { extractText, type RTNode } from "@/lib/rich-text/model";
 import { slugify } from "@/lib/slug";
@@ -91,6 +91,7 @@ export function ProjectEditor({ data }: { data: ProjectEditorData }) {
               <Field label="Project title" htmlFor="title" error={fieldErrors.title} required>
                 <Input id="title" value={form.title} className="!text-lg font-medium" onChange={(e) => set({ title: e.target.value, ...(autoSlug ? { slug: slugify(e.target.value) } : {}) })} />
               </Field>
+              <AiTitleButton kind="project" title={form.title} generate={aiProjectDraftAction} onApply={applyAi} categories={data.categories.map((c) => c.name)} />
               <SlugField value={form.slug} onChange={(slug) => set({ slug })} title={form.title} prefix="/projects/" error={fieldErrors.slug} autoSync={autoSlug} onAutoSyncChange={setAutoSlug} />
               <Field label="Summary" htmlFor="summary" help="One or two sentences shown on project cards." error={fieldErrors.summary}>
                 <Textarea id="summary" rows={2} maxLength={500} value={form.summary} onChange={(e) => set({ summary: e.target.value })} />

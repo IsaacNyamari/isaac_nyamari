@@ -1,0 +1,615 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  EDITOR
+}
+
+enum ContentStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum InquiryStatus {
+  NEW
+  IN_PROGRESS
+  RESPONDED
+  ARCHIVED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum MediaKind {
+  IMAGE
+  DOCUMENT
+}
+
+enum SectionState {
+  DRAFT
+  LIVE
+}
+
+enum HomeSectionType {
+  HERO
+  INTRO
+  SERVICES
+  PROJECTS
+  SKILLS
+  PROCESS
+  INSIGHTS
+  CONTACT_CTA
+}
+
+enum PageTemplate {
+  DEFAULT
+  ABOUT
+  LEGAL
+}
+
+// ─── Authentication (Better Auth) ───────────────────────────────────────────
+
+model AdminUser {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          Role      @default(ADMIN)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+
+  posts          Post[]          @relation("PostAuthor")
+  postEdits      Post[]          @relation("PostEditor")
+  projectEdits   Project[]       @relation("ProjectEditor")
+  serviceEdits   Service[]       @relation("ServiceEditor")
+  pageEdits      Page[]          @relation("PageEditor")
+  postRevisions  PostRevision[]
+  pageRevisions  PageRevision[]
+  uploads        MediaAsset[]
+  inquiryNotes   InquiryNote[]
+  settingsEdits  SiteSettings[]
+
+  @@map("admin_users")
+}
+
+model Session {
+  id        String    @id
+  expiresAt DateTime
+  token     String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("auth_rate_limits")
+}
+
+// ─── Media ──────────────────────────────────────────────────────────────────
+
+model MediaAsset {
+  id           String    @id @default(cuid())
+  kind         MediaKind @default(IMAGE)
+  filename     String // original filename as uploaded
+  storageKey   String    @unique
+  url          String
+  mimeType     String
+  size         Int
+  width        Int?
+  height       Int?
+  /// Responsive WebP variants: [{ width, key, url, size }]
+  variants     Json      @default("[]")
+  alt          String    @default("")
+  caption      String    @default("")
+  description  String    @default("")
+  uploaderId   String?
+  uploader     AdminUser? @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  postCovers      Post[]         @relation("PostCover")
+  postOgImages    Post[]         @relation("PostOg")
+  projectCovers   Project[]      @relation("ProjectCover")
+  projectOgImages Project[]      @relation("ProjectOg")
+  projectGallery  ProjectImage[]
+  serviceImages   Service[]      @relation("ServiceImage")
+  pageImages      Page[]         @relation("PageImage")
+
+  @@index([kind, createdAt])
+  @@index([filename])
+  @@map("media_assets")
+}
+
+// ─── Blog ───────────────────────────────────────────────────────────────────
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  posts       Post[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  posts     PostTag[]
+
+  @@map("tags")
+}
+
+model Post {
+  id             String        @id @default(cuid())
+  title          String
+  slug           String        @unique
+  excerpt        String        @default("")
+  /// Tiptap / ProseMirror JSON document
+  content        Json
+  /// Plain-text projection of `content`, used for search and reading time
+  contentText    String        @default("")
+  readingMinutes Int           @default(1)
+  status         ContentStatus @default(DRAFT)
+  publishedAt    DateTime?
+  scheduledAt    DateTime?
+  featured       Boolean       @default(false)
+  viewCount      Int           @default(0)
+  showToc        Boolean       @default(false)
+
+  coverImageId String?
+  coverImage   MediaAsset? @relation("PostCover", fields: [coverImageId], references: [id], onDelete: Restrict)
+  ogImageId    String?
+  ogImage      MediaAsset? @relation("PostOg", fields: [ogImageId], references: [id], onDelete: Restrict)
+  authorId     String?
+  author       AdminUser?  @relation("PostAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  categoryId   String?
+  category     Category?   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  seoTitle       String @default("")
+  seoDescription String @default("")
+  canonicalUrl   String @default("")
+
+  /// Unpublished edits to a published post (applied on "Update")
+  pendingChanges Json?
+  version        Int      @default(1)
+  lastEditedById String?
+  lastEditedBy   AdminUser? @relation("PostEditor", fields: [lastEditedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tags      PostTag[]
+  revisions PostRevision[]
+  related   PostRelation[] @relation("PostRelationFrom")
+  relatedBy PostRelation[] @relation("PostRelationTo")
+
+  @@index([status, publishedAt])
+  @@index([status, scheduledAt])
+  @@index([categoryId])
+  @@map("posts")
+}
+
+model PostTag {
+  postId String
+  tagId  String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+  @@map("post_tags")
+}
+
+model PostRelation {
+  postId    String
+  relatedId String
+  position  Int    @default(0)
+  post      Post   @relation("PostRelationFrom", fields: [postId], references: [id], onDelete: Cascade)
+  related   Post   @relation("PostRelationTo", fields: [relatedId], references: [id], onDelete: Cascade)
+
+  @@id([postId, relatedId])
+  @@map("post_relations")
+}
+
+model PostRevision {
+  id        String     @id @default(cuid())
+  postId    String
+  post      Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  title     String
+  /// Full editable snapshot (title, excerpt, content, seo, taxonomy ids …)
+  snapshot  Json
+  note      String     @default("")
+  editorId  String?
+  editor    AdminUser? @relation(fields: [editorId], references: [id], onDelete: SetNull)
+  createdAt DateTime   @default(now())
+
+  @@index([postId, createdAt])
+  @@map("post_revisions")
+}
+
+// ─── Projects ───────────────────────────────────────────────────────────────
+
+model ProjectCategory {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  position  Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  projects  Project[]
+
+  @@map("project_categories")
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  title        String
+  slug         String        @unique
+  summary      String        @default("")
+  problem      String        @default("")
+  solution     String        @default("")
+  /// Full case study (Tiptap JSON)
+  content      Json
+  role         String        @default("")
+  clientName   String        @default("")
+  technologies String[]      @default([])
+  startDate    DateTime?
+  endDate      DateTime?
+  externalUrl  String        @default("")
+  repositoryUrl String       @default("")
+  featured     Boolean       @default(false)
+  position     Int           @default(0)
+  status       ContentStatus @default(DRAFT)
+  publishedAt  DateTime?
+
+  coverImageId String?
+  coverImage   MediaAsset? @relation("ProjectCover", fields: [coverImageId], references: [id], onDelete: Restrict)
+  ogImageId    String?
+  ogImage      MediaAsset? @relation("ProjectOg", fields: [ogImageId], references: [id], onDelete: Restrict)
+
+  seoTitle       String @default("")
+  seoDescription String @default("")
+
+  pendingChanges Json?
+  version        Int        @default(1)
+  lastEditedById String?
+  lastEditedBy   AdminUser? @relation("ProjectEditor", fields: [lastEditedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  categories ProjectCategory[]
+  gallery    ProjectImage[]
+
+  @@index([status, position])
+  @@map("projects")
+}
+
+model ProjectImage {
+  id        String     @id @default(cuid())
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mediaId   String
+  media     MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+  caption   String     @default("")
+  position  Int        @default(0)
+
+  @@index([projectId, position])
+  @@map("project_images")
+}
+
+// ─── Services ───────────────────────────────────────────────────────────────
+
+model Service {
+  id           String        @id @default(cuid())
+  title        String
+  slug         String        @unique
+  summary      String        @default("")
+  content      Json
+  icon         String        @default("code")
+  deliverables String[]      @default([])
+  ctaLabel     String        @default("Discuss your project")
+  featured     Boolean       @default(true)
+  position     Int           @default(0)
+  status       ContentStatus @default(DRAFT)
+  publishedAt  DateTime?
+
+  imageId String?
+  image   MediaAsset? @relation("ServiceImage", fields: [imageId], references: [id], onDelete: Restrict)
+
+  seoTitle       String @default("")
+  seoDescription String @default("")
+
+  pendingChanges Json?
+  version        Int        @default(1)
+  lastEditedById String?
+  lastEditedBy   AdminUser? @relation("ServiceEditor", fields: [lastEditedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  inquiries ContactInquiry[]
+
+  @@index([status, position])
+  @@map("services")
+}
+
+// ─── Pages & homepage ───────────────────────────────────────────────────────
+
+model Page {
+  id        String        @id @default(cuid())
+  title     String
+  slug      String        @unique
+  excerpt   String        @default("")
+  content   Json
+  template  PageTemplate  @default(DEFAULT)
+  /// Template-specific structured fields (e.g. About: philosophy, interests)
+  data      Json          @default("{}")
+  /// System pages (about, privacy) have fixed slugs and cannot be deleted
+  system    Boolean       @default(false)
+  showInNav Boolean       @default(false)
+  status    ContentStatus @default(DRAFT)
+  publishedAt DateTime?
+
+  featuredImageId String?
+  featuredImage   MediaAsset? @relation("PageImage", fields: [featuredImageId], references: [id], onDelete: Restrict)
+
+  seoTitle       String @default("")
+  seoDescription String @default("")
+
+  pendingChanges Json?
+  version        Int        @default(1)
+  lastEditedById String?
+  lastEditedBy   AdminUser? @relation("PageEditor", fields: [lastEditedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  revisions PageRevision[]
+
+  @@map("pages")
+}
+
+model PageRevision {
+  id        String     @id @default(cuid())
+  pageId    String
+  page      Page       @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  title     String
+  snapshot  Json
+  note      String     @default("")
+  editorId  String?
+  editor    AdminUser? @relation(fields: [editorId], references: [id], onDelete: SetNull)
+  createdAt DateTime   @default(now())
+
+  @@index([pageId, createdAt])
+  @@map("page_revisions")
+}
+
+/// Homepage sections. DRAFT rows are edited in the dashboard; publishing copies them to LIVE.
+model HomeSection {
+  id        String          @id @default(cuid())
+  state     SectionState
+  key       String // stable identifier shared by the DRAFT and LIVE copy
+  type      HomeSectionType
+  position  Int
+  visible   Boolean         @default(true)
+  config    Json            @default("{}")
+  updatedAt DateTime        @updatedAt
+
+  @@unique([state, key])
+  @@index([state, position])
+  @@map("home_sections")
+}
+
+// ─── Skills, navigation, settings ───────────────────────────────────────────
+
+model Skill {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  description String   @default("")
+  icon        String   @default("")
+  position    Int      @default(0)
+  visible     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category, position])
+  @@map("skills")
+}
+
+model NavigationMenu {
+  id        String           @id @default(cuid())
+  key       String           @unique // "header" | "footer"
+  name      String
+  updatedAt DateTime         @updatedAt
+  items     NavigationItem[]
+
+  @@map("navigation_menus")
+}
+
+model NavigationItem {
+  id       String         @id @default(cuid())
+  menuId   String
+  menu     NavigationMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  label    String
+  href     String
+  external Boolean        @default(false)
+  newTab   Boolean        @default(false)
+  enabled  Boolean        @default(true)
+  position Int            @default(0)
+
+  @@index([menuId, position])
+  @@map("navigation_items")
+}
+
+/// Singleton row (id = "site")
+model SiteSettings {
+  id              String   @id @default("site")
+  siteName        String   @default("Isaac Nyamari")
+  tagline         String   @default("")
+  siteDescription String   @default("")
+  siteUrl         String   @default("")
+  language        String   @default("en")
+  timezone        String   @default("Africa/Nairobi")
+
+  logoLightId     String?
+  logoDarkId      String?
+  faviconId       String?
+  ogImageId       String?
+  placeholderImageId String?
+  primaryColor    String   @default("")
+  accentColor     String   @default("")
+
+  seoTitle        String   @default("")
+  seoDescription  String   @default("")
+  allowIndexing   Boolean  @default(true)
+
+  email           String   @default("")
+  phone           String   @default("")
+  whatsapp        String   @default("")
+  locationText    String   @default("")
+  /// { linkedin, github, x, facebook, instagram, youtube, tiktok }
+  socials         Json     @default("{}")
+  contactCtaTitle String   @default("")
+  contactCtaText  String   @default("")
+
+  footerDescription String @default("")
+  copyrightText   String   @default("")
+  footerCtaText   String   @default("")
+
+  /// Inquiry notification recipient (falls back to `email`)
+  notifyEmail     String   @default("")
+
+  updatedAt       DateTime @updatedAt
+  updatedById     String?
+  updatedBy       AdminUser? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("site_settings")
+}
+
+// ─── Inquiries ──────────────────────────────────────────────────────────────
+
+model ContactInquiry {
+  id           String         @id @default(cuid())
+  name         String
+  email        String
+  phone        String         @default("")
+  serviceId    String?
+  service      Service?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  serviceLabel String         @default("")
+  budget       String         @default("")
+  message      String
+  consent      Boolean        @default(false)
+  status       InquiryStatus  @default(NEW)
+  read         Boolean        @default(false)
+  ipHash       String         @default("")
+  userAgent    String         @default("")
+  emailStatus  DeliveryStatus @default(PENDING)
+  emailError   String         @default("")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  notes        InquiryNote[]
+
+  @@index([status, createdAt])
+  @@index([read])
+  @@map("contact_inquiries")
+}
+
+model InquiryNote {
+  id        String         @id @default(cuid())
+  inquiryId String
+  inquiry   ContactInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  body      String
+  authorId  String?
+  author    AdminUser?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt DateTime       @default(now())
+
+  @@index([inquiryId])
+  @@map("inquiry_notes")
+}
+
+// ─── Misc ───────────────────────────────────────────────────────────────────
+
+/// Old public paths of content whose slug changed after publication
+model Redirect {
+  id         String   @id @default(cuid())
+  fromPath   String   @unique
+  toPath     String
+  statusCode Int      @default(308)
+  createdAt  DateTime @default(now())
+
+  @@map("redirects")
+}
+
+/// Fixed-window rate limiting for public endpoints (contact form)
+model RateLimitBucket {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@map("rate_limit_buckets")
+}
